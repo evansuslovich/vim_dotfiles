@@ -4,7 +4,7 @@
 
 if has('nvim-0.5')
   lua << EOF
-  local status, nvim_lsp = pcall(require, 'lspconfig')
+  local status, _ = pcall(require, 'lspconfig')
   if status then
     -- Run an LSP command using a Telescope picker if it's available, otherwise use the fallback.
     function lsp_do(picker, fallback)
@@ -12,8 +12,8 @@ if has('nvim-0.5')
         print('Getting code actions (this may take a while on first use)...')
       end
       vim.schedule(function()
-        local status, telescope = pcall(require, 'telescope.builtin')
-        if status then
+        local ok, telescope = pcall(require, 'telescope.builtin')
+        if ok then
           telescope[picker]{}
         else
           fallback()
@@ -22,92 +22,102 @@ if has('nvim-0.5')
     end
 
     function lsp_workspace_symbols(query)
-      local status, telescope = pcall(require, 'telescope.builtin')
-      if status then
+      local ok, telescope = pcall(require, 'telescope.builtin')
+      if ok then
         telescope.lsp_workspace_symbols{query=query}
       else
         vim.lsp.buf.workspace_symbol(query)
       end
     end
 
-    local on_attach = function(client, bufnr)
-      local function buf_set_keymap(...) vim.api.nvim_buf_set_keymap(bufnr, ...) end
-      local function buf_set_option(...) vim.api.nvim_buf_set_option(bufnr, ...) end
+    -- Runs on every buffer an LSP client attaches to, replacing the old
+    -- setup({on_attach = ...}) pattern (removed along with the lspconfig
+    -- "framework" in Neovim 0.11). See :help lspconfig-nvim-0.11
+    vim.api.nvim_create_autocmd('LspAttach', {
+      group = vim.api.nvim_create_augroup('lsp_attach', { clear = true }),
+      callback = function(args)
+        local client = vim.lsp.get_client_by_id(args.data.client_id)
+        local bufnr = args.buf
+        local opts = { noremap = true, silent = true, buffer = bufnr }
 
-      buf_set_option('omnifunc', 'v:lua.vim.lsp.omnifunc')
+        -- Navigation
+        vim.keymap.set('n', 'gD', vim.lsp.buf.declaration, opts)
+        vim.keymap.set('n', 'gd', function() lsp_do('lsp_definitions', vim.lsp.buf.definition) end, opts)
+        vim.keymap.set('n', '<Leader>D', function() lsp_do('lsp_type_definitions', vim.lsp.buf.type_definition) end, opts)
 
-      -- Mappings.
-      local opts = { noremap=true, silent=true }
+        -- Information
+        vim.keymap.set('n', 'K', vim.lsp.buf.hover, opts)
+        vim.keymap.set('n', 'gi', vim.lsp.buf.implementation, opts)
+        vim.keymap.set('n', '<C-k>', vim.lsp.buf.signature_help, opts)
+        vim.keymap.set('n', 'gr', function() lsp_do('lsp_references', vim.lsp.buf.references) end, opts)
+        vim.keymap.set('n', '<Leader>ds', function() lsp_do('lsp_document_symbols', vim.lsp.buf.document_symbol) end, opts)
 
-      -- Inspired by https://github.com/neovim/nvim-lspconfig/#keybindings-and-completion,
-      -- but with <leader> instead of <space>
+        -- Diagnostics
+        vim.keymap.set('n', '[d', function() vim.diagnostic.jump({ count = -1, float = true }) end, opts)
+        vim.keymap.set('n', ']d', function() vim.diagnostic.jump({ count = 1, float = true }) end, opts)
+        vim.keymap.set('n', '<Leader>e', vim.diagnostic.open_float, opts)
+        vim.keymap.set('n', '<Leader>q', vim.diagnostic.setloclist, opts)
 
-      -- Navigation
-      buf_set_keymap('n', 'gD', '<cmd>lua vim.lsp.buf.declaration()<CR>', opts)
-      buf_set_keymap('n', 'gd', '<cmd>lua lsp_do("lsp_definitions", vim.lsp.buf.definition)<CR>', opts)
-      buf_set_keymap('n', '<Leader>D', '<cmd>lua lsp_do("lsp_type_definitions", vim.lsp.buf.type_definition)<CR>', opts)
+        -- Refactoring
+        vim.keymap.set('n', '<Leader>rn', vim.lsp.buf.rename, opts)
+        vim.keymap.set('n', '<Leader>ca', function() lsp_do('lsp_code_actions', vim.lsp.buf.code_action) end, opts)
 
-      -- Information
-      buf_set_keymap('n', 'K', '<Cmd>lua vim.lsp.buf.hover()<CR>', opts)
-      buf_set_keymap('n', 'gi', '<cmd>lua vim.lsp.buf.implementation()<CR>', opts)
-      buf_set_keymap('n', '<C-k>', '<cmd>lua vim.lsp.buf.signature_help()<CR>', opts)
-      buf_set_keymap('n', 'gr', '<cmd>lua lsp_do("lsp_references", vim.lsp.buf.references)<CR>', opts)
-      buf_set_keymap('n', '<Leader>ds', '<cmd>lua lsp_do("lsp_document_symbols", vim.lsp.buf.document_symbol)<CR>', opts)
+        -- Workspaces
+        vim.keymap.set('n', '<Leader>wa', vim.lsp.buf.add_workspace_folder, opts)
+        vim.keymap.set('n', '<Leader>wr', vim.lsp.buf.remove_workspace_folder, opts)
+        vim.keymap.set('n', '<Leader>wl', function() print(vim.inspect(vim.lsp.buf.list_workspace_folders())) end, opts)
 
-      -- Diagnostics
-      buf_set_keymap('n', '[d', '<cmd>lua vim.lsp.diagnostic.goto_prev()<CR>', opts)
-      buf_set_keymap('n', ']d', '<cmd>lua vim.lsp.diagnostic.goto_next()<CR>', opts)
-      buf_set_keymap('n', '<Leader>e', '<cmd>lua vim.lsp.diagnostic.show_line_diagnostics()<CR>', opts)
-      buf_set_keymap('n', '<Leader>q', '<cmd>lua vim.lsp.diagnostic.set_loclist()<CR>', opts)
+        if client and (client:supports_method('textDocument/formatting') or client:supports_method('textDocument/rangeFormatting')) then
+          vim.keymap.set('n', '<Leader>fd', vim.lsp.buf.format, opts)
+        end
 
-      -- Refactoring
-      buf_set_keymap('n', '<Leader>rn', '<cmd>lua vim.lsp.buf.rename()<CR>', opts)
-      buf_set_keymap('n', '<Leader>ca', '<cmd>lua lsp_do("lsp_code_actions", vim.lsp.buf.code_action)<CR>', opts)
+        if client and client:supports_method('textDocument/documentHighlight') then
+          vim.api.nvim_set_hl(0, 'LspReferenceRead', { bold = true, bg = 'LightYellow' })
+          vim.api.nvim_set_hl(0, 'LspReferenceText', { bold = true, bg = 'LightYellow' })
+          vim.api.nvim_set_hl(0, 'LspReferenceWrite', { bold = true, bg = 'LightYellow' })
+          local hl_group = vim.api.nvim_create_augroup('lsp_document_highlight', { clear = false })
+          vim.api.nvim_clear_autocmds({ group = hl_group, buffer = bufnr })
+          vim.api.nvim_create_autocmd('CursorHold', { group = hl_group, buffer = bufnr, callback = vim.lsp.buf.document_highlight })
+          vim.api.nvim_create_autocmd('CursorMoved', { group = hl_group, buffer = bufnr, callback = vim.lsp.buf.clear_references })
+        end
+      end,
+    })
 
-      -- Workspaces
-      buf_set_keymap('n', '<Leader>wa', '<cmd>lua vim.lsp.buf.add_workspace_folder()<CR>', opts)
-      buf_set_keymap('n', '<Leader>wr', '<cmd>lua vim.lsp.buf.remove_workspace_folder()<CR>', opts)
-      buf_set_keymap('n', '<Leader>wl', '<cmd>lua print(vim.inspect(vim.lsp.buf.list_workspace_folders()))<CR>', opts)
-
-      -- Set some keybinds conditional on server capabilities
-      if client.resolved_capabilities.document_formatting then
-        buf_set_keymap("n", "<Leader>fd", "<cmd>lua vim.lsp.buf.formatting()<CR>", opts)
-      elseif client.resolved_capabilities.document_range_formatting then
-        buf_set_keymap("n", "<Leader>fd", "<cmd>lua vim.lsp.buf.formatting()<CR>", opts)
-      end
-
-      -- Set autocommands conditional on server_capabilities
-      if client.resolved_capabilities.document_highlight then
-        vim.api.nvim_exec([[
-          hi LspReferenceRead cterm=bold ctermbg=red guibg=LightYellow
-          hi LspReferenceText cterm=bold ctermbg=red guibg=LightYellow
-          hi LspReferenceWrite cterm=bold ctermbg=red guibg=LightYellow
-          augroup lsp_document_highlight
-            autocmd!
-            autocmd CursorHold <buffer> lua vim.lsp.buf.document_highlight()
-            autocmd CursorMoved <buffer> lua vim.lsp.buf.clear_references()
-          augroup END
-        ]], false)
-      end
+    -- Language server for Go
+    if vim.fn.executable('gopls') == 1 then
+      vim.lsp.enable('gopls')
     end
 
-    local jdtls_bundles = {vim.env.HOME.."/language-servers/java/extensions/debug.jar"};
-    vim.list_extend(jdtls_bundles, vim.split(vim.fn.glob(vim.env.HOME.."/language-servers/java/extensions/test/extension/server/*.jar"), "\n"))
-    nvim_lsp.jdtls.setup{
-      cmd = { "java-language-server", "--heap-max", "8G" };
-      init_options = {
-        bundles = jdtls_bundles;
-      };
-      on_attach = on_attach;
-    }
+    -- Language server for Bash
+    if vim.fn.executable('bash-language-server') == 1 then
+      vim.lsp.enable('bashls')
+    end
 
-    nvim_lsp.gopls.setup{
-      on_attach = on_attach;
-    }
+    -- Language server for editing this Lua/Vimscript config
+    if vim.fn.executable('lua-language-server') == 1 then
+      vim.lsp.enable('lua_ls')
+    end
 
-    nvim_lsp.bashls.setup{
-      on_attach = on_attach;
-    }
+    -- Remove unused imports for Java
+    vim.api.nvim_create_autocmd('FileType', {
+      pattern = 'java',
+      callback = function()
+        vim.api.nvim_create_autocmd('BufWritePre', { buffer = 0, command = 'UnusedImports' })
+      end,
+    })
+
+    -- Language server for Java
+    if vim.fn.executable('java-language-server') == 1 then
+      local jdtls_bundles = { vim.env.HOME .. "/language-servers/java/extensions/debug.jar" }
+      vim.list_extend(jdtls_bundles, vim.split(vim.fn.glob(vim.env.HOME .. "/language-servers/java/extensions/test/extension/server/*.jar"), "\n"))
+      vim.lsp.config('jdtls', {
+        cmd = { "java-language-server", "--heap-max", "8G" },
+        init_options = {
+          bundles = jdtls_bundles,
+        },
+      })
+      vim.lsp.enable('jdtls')
+    end
   end
 
   local status, telescope = pcall(require, 'telescope')
@@ -151,9 +161,9 @@ if has('nvim-0.5')
   function notify_file_changed(buffer, change)
     local log = require('vim.lsp.log')
     local filepath = vim.fn.expand('#'..buffer..':p')
-    for _,client in pairs(vim.lsp.get_active_clients()) do
+    for _,client in pairs(vim.lsp.get_clients()) do
       log.info('Notifying LSP server "'..client.name..'" of change to file "'..filepath..'"')
-      local result = client.notify('workspace/didChangeWatchedFiles', {
+      local result = client:notify('workspace/didChangeWatchedFiles', {
         changes = {{ uri = 'file://'..filepath, type = change }},
       })
       if not result then
