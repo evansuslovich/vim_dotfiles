@@ -63,6 +63,12 @@ endif
 set undolevels=1000 "maximum number of changes that can be undone
 
 " Color
+" These colorschemes predate Neovim's truecolor support and only define
+" 256-color (cterm) values. Neovim 0.10+ auto-enables 'termguicolors' when
+" the terminal advertises truecolor (COLORTERM=truecolor), which makes it
+" ignore cterm values entirely and show no color at all. Force it off so
+" both vim and nvim render these schemes the same way.
+set notermguicolors
 colorscheme vibrantink
 
 augroup Drakefile
