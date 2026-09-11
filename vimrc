@@ -69,7 +69,7 @@ set undolevels=1000 "maximum number of changes that can be undone
 " ignore cterm values entirely and show no color at all. Force it off so
 " both vim and nvim render these schemes the same way.
 set notermguicolors
-colorscheme vibrantink
+colorscheme koehler
 
 augroup Drakefile
   au!
@@ -532,8 +532,8 @@ command! -nargs=0 Trim :call Trim()
 nnoremap <silent> <Leader>cw :Trim<CR>
 
 function! __Edge()
-  colorscheme Tomorrow-Night
-  au BufWinLeave * colorscheme Tomorrow-Night
+  colorscheme koehler
+  au BufWinLeave * colorscheme koehler
 
   set ttyfast
 
