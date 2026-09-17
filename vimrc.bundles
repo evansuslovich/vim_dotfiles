@@ -114,6 +114,7 @@ if has('nvim-0.5.1')
   Plug 'nvim-lua/plenary.nvim' " Required for telescope
   Plug 'nvim-telescope/telescope.nvim'
   Plug 'nvim-treesitter/nvim-treesitter', {'branch': 'master', 'do': ':TSUpdate'}
+  Plug 'MeanderingProgrammer/render-markdown.nvim' " In-buffer Markdown rendering
 endif
 if filereadable(expand("~/.vimrc.bundles.local"))
   source ~/.vimrc.bundles.local

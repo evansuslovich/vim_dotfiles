@@ -2,6 +2,13 @@
     let &packpath = &runtimepath
     source ~/.vim/vimrc
 
+" Prepend after plug#end() (called from vimrc.bundles above) so this wins
+" over plugin-provided query files, which vim-plug puts at the front of
+" 'runtimepath'. Currently used to override nvim-treesitter's markdown
+" injections query, which crashes on Neovim 0.12 (see comment in
+" ~/.vim/nvim-overrides/queries/markdown/injections.scm).
+set runtimepath^=~/.vim/nvim-overrides
+
 if has('nvim-0.5')
   lua << EOF
   local status, _ = pcall(require, 'lspconfig')
@@ -135,9 +142,14 @@ if has('nvim-0.5')
   if status then
     treesitter.setup{
       -- List of supported languages can be found here: https://github.com/nvim-treesitter/nvim-treesitter#supported-languages
-      ensure_installed = {"bash", "c_sharp", "clojure", "comment", "css", "go", "graphql", "html", "java", "javascript", "json", "kotlin", "lua", "php", "python", "regex", "ruby", "rust", "scala", "toml", "typescript"},
+      ensure_installed = {"bash", "c_sharp", "clojure", "comment", "css", "go", "graphql", "html", "java", "javascript", "json", "kotlin", "lua", "markdown", "markdown_inline", "php", "python", "regex", "ruby", "rust", "scala", "toml", "typescript"},
       highlight = {
-        enable = true
+        enable = true,
+        -- Neovim 0.12's core TS highlighter crashes on markdown fenced code
+        -- blocks (https://github.com/neovim/neovim/issues/39032). The
+        -- markdown/markdown_inline parsers stay installed for
+        -- render-markdown.nvim; vim-markdown's regex syntax covers colors.
+        disable = {"markdown"},
       },
       incremental_selection = {
         enable = true,
@@ -156,6 +168,11 @@ if has('nvim-0.5')
     vim.wo.foldmethod = 'expr'
     vim.wo.foldexpr = 'nvim_treesitter#foldexpr()'
     vim.o.foldlevelstart = 99
+  end
+
+  local status, render_markdown = pcall(require, 'render-markdown')
+  if status then
+    render_markdown.setup{}
   end
 
   function notify_file_changed(buffer, change)
