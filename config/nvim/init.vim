@@ -9,6 +9,10 @@
 " ~/.vim/nvim-overrides/queries/markdown/injections.scm).
 set runtimepath^=~/.vim/nvim-overrides
 
+" vimrc disables the mouse; enable it in normal mode so Ctrl+click
+" go-to-definition works
+set mouse=n
+
 if has('nvim-0.5')
   lua << EOF
   local status, _ = pcall(require, 'lspconfig')
@@ -51,6 +55,9 @@ if has('nvim-0.5')
         vim.keymap.set('n', 'gD', vim.lsp.buf.declaration, opts)
         vim.keymap.set('n', 'gd', function() lsp_do('lsp_definitions', vim.lsp.buf.definition) end, opts)
         vim.keymap.set('n', '<Leader>D', function() lsp_do('lsp_type_definitions', vim.lsp.buf.type_definition) end, opts)
+        -- Ctrl+click jumps to the definition under the mouse; Ctrl+right-click jumps back
+        vim.keymap.set('n', '<C-LeftMouse>', '<LeftMouse><cmd>lua vim.lsp.buf.definition()<CR>', opts)
+        vim.keymap.set('n', '<C-RightMouse>', '<C-o>', opts)
 
         -- Information
         vim.keymap.set('n', 'K', vim.lsp.buf.hover, opts)
@@ -113,8 +120,33 @@ if has('nvim-0.5')
       end,
     })
 
-    -- Language server for Java
-    if vim.fn.executable('java-language-server') == 1 then
+    -- Language server for Java (brew install jdtls)
+    if vim.fn.executable('jdtls') == 1 then
+      vim.lsp.config('jdtls', {
+        init_options = {
+          -- Lets go-to-definition open JDK/library classes as jdt:// URIs
+          extendedClientCapabilities = { classFileContentsSupport = true },
+        },
+      })
+      vim.lsp.enable('jdtls')
+
+      -- Load decompiled class contents for jdt:// buffers (e.g. java.lang.String)
+      vim.api.nvim_create_autocmd('BufReadCmd', {
+        pattern = 'jdt://*',
+        callback = function(args)
+          local client = vim.lsp.get_clients({ name = 'jdtls' })[1]
+          if not client then return end
+          local response = client:request_sync('java/classFileContents', { uri = args.match }, 10000, args.buf)
+          local content = response and response.result or ''
+          vim.bo[args.buf].modifiable = true
+          vim.api.nvim_buf_set_lines(args.buf, 0, -1, false, vim.split(content, '\n', { plain = true }))
+          vim.bo[args.buf].filetype = 'java'
+          vim.bo[args.buf].buftype = 'nofile'
+          vim.bo[args.buf].modifiable = false
+          vim.lsp.buf_attach_client(args.buf, client.id)
+        end,
+      })
+    elseif vim.fn.executable('java-language-server') == 1 then
       local jdtls_bundles = { vim.env.HOME .. "/language-servers/java/extensions/debug.jar" }
       vim.list_extend(jdtls_bundles, vim.split(vim.fn.glob(vim.env.HOME .. "/language-servers/java/extensions/test/extension/server/*.jar"), "\n"))
       vim.lsp.config('jdtls', {
