@@ -97,9 +97,37 @@ if has('nvim-0.5')
       end,
     })
 
+    -- Autocompletion popup. Advertise its capabilities (snippets, etc.) to
+    -- every server so jdtls sends method/constructor templates.
+    local ok, blink = pcall(require, 'blink.cmp')
+    if ok then
+      blink.setup{
+        -- <Tab> accept (or jump to next snippet placeholder), <S-Tab> previous
+        -- placeholder, <C-space> open, <C-e> close. A plain tab is still
+        -- inserted when the menu isn't showing.
+        keymap = {
+          preset = 'super-tab',
+          -- Match the pumvisible() <C-j>/<C-k> mappings in vimrc
+          ['<C-j>'] = { 'select_next', 'fallback' },
+          ['<C-k>'] = { 'select_prev', 'fallback' },
+        },
+        completion = {
+          documentation = { auto_show = true, auto_show_delay_ms = 300 },
+        },
+        signature = { enabled = true },
+        sources = { default = { 'lsp', 'path', 'snippets', 'buffer' } },
+      }
+      vim.lsp.config('*', { capabilities = blink.get_lsp_capabilities() })
+    end
+
     -- Language server for Go
     if vim.fn.executable('gopls') == 1 then
       vim.lsp.enable('gopls')
+    end
+
+    -- Language server for C/C++
+    if vim.fn.executable('clangd') == 1 then
+      vim.lsp.enable('clangd')
     end
 
     -- Language server for Bash
