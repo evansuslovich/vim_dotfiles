@@ -26,7 +26,7 @@ Plug 'derekwyatt/vim-scala'
 Plug 'ekalinin/Dockerfile.vim'
 Plug 'elixir-lang/vim-elixir'
 Plug 'elubow/cql-vim'
-Plug 'fatih/vim-go', { 'commit': '8c4db1c61432511a3aa55971dabb2171cbcba7b1', 'do': ':GoInstallBinaries' }
+Plug 'fatih/vim-go', { 'commit': 'afdc93535605efaa4624b4dde296961add89750f', 'do': ':GoInstallBinaries' }
 Plug 'Glench/Vim-Jinja2-Syntax'
 Plug 'godlygeek/tabular'
 Plug 'tpope/vim-markdown'
@@ -117,6 +117,7 @@ if has('nvim-0.5.1')
   Plug 'MeanderingProgrammer/render-markdown.nvim' " In-buffer Markdown rendering
   " Autocompletion; release tags ship a prebuilt fuzzy-matcher binary
   Plug 'saghen/blink.cmp', { 'tag': 'v1.*' }
+  Plug 'sphamba/smear-cursor.nvim' " Animated cursor trail on jumps
 endif
 if filereadable(expand("~/.vimrc.bundles.local"))
   source ~/.vimrc.bundles.local

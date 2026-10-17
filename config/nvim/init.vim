@@ -235,6 +235,11 @@ if has('nvim-0.5')
     render_markdown.setup{}
   end
 
+  local status, smear_cursor = pcall(require, 'smear_cursor')
+  if status then
+    smear_cursor.setup{}
+  end
+
   function notify_file_changed(buffer, change)
     local log = require('vim.lsp.log')
     local filepath = vim.fn.expand('#'..buffer..':p')
